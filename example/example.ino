@@ -3,6 +3,42 @@
 #include <BLEUtils.h>
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
+#include "LoRaWan_APP.h"
+
+/* ABP para*/
+uint8_t devEui[] = { 0x14, 0x19, 0x0b, 0x1d, 0x14, 0x19, 0x0b, 0x1d};
+uint8_t appEui[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+uint8_t appKey[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+uint8_t appSKey[] = {0xAE,0x8F,0x48,0xA0,0x5F,0xA1,0x91,0xCF,0xAB,0x5F,0xCD,0xE4,0xB2,0xE7,0x16,0x3F};
+uint8_t nwkSKey[] = {0x98,0x0C,0x7F,0xB8,0x2B,0xAD,0x47,0xFE,0x5D,0x53,0xF2,0xF0,0x66,0x30,0x72,0x9C};
+uint32_t devAddr = (uint32_t)0x260B818D;
+
+/*LoraWan channelsmask, default channels 0-7*/ 
+uint16_t userChannelsMask[6]={ 0x00FF,0x0000,0x0000,0x0000,0x0000,0x0000 };
+
+/*LoraWan region, select in arduino IDE tools*/
+LoRaMacRegion_t loraWanRegion = ACTIVE_REGION;
+
+/*LoraWan Class, Class A and Class C are supported*/
+DeviceClass_t  loraWanClass = CLASS_A;
+
+/*the application data transmission duty cycle.  value in [ms].*/
+uint32_t appTxDutyCycle = 15000;
+
+/*OTAA or ABP*/
+bool overTheAirActivation = false;
+
+/*ADR enable*/
+bool loraWanAdr = true;
+
+/* Indicates if the node is sending confirmed or unconfirmed messages */
+bool isTxConfirmed = false;
+
+/* Application port */
+uint8_t appPort = 2;
+
+uint8_t confirmedNbTrials = 4;
+
 
 // BLE scan duration in seconds
 int BLE_SCAN_TIME = 5;
@@ -14,8 +50,35 @@ BLEScan *pBLEScan;
 int THRESHOLD_CALM    = 5;   // totalSignals < 5  -> CALM
 int THRESHOLD_CROWDED = 20;  // totalSignals >= 20 -> CROWDED
 
+
+// Global variables to store latest counts
+uint16_t latestWifiCount = 0;
+uint16_t latestBleCount = 0;
+
+// Function to prepare and send LoRaWAN payload
+// Payload format (5 bytes total):
+// Byte 0-1: WiFi count (uint16_t, big-endian)
+// Byte 2-3: BLE count (uint16_t, big-endian)
+// Byte 4: Crowd level (uint8_t: 0=CALM, 1=MODERATE, 2=CROWDED)
+void sendLoRaWANData(uint16_t wifiCount, uint16_t bleCount, uint8_t port) {
+    
+    // Queue the transmission
+    appDataSize = 4;
+    appData[0] = (wifiCount >> 8) & 0xFF;
+    appData[1] = wifiCount & 0xFF;
+    appData[2] = (bleCount >> 8) & 0xFF;
+    appData[3] = bleCount & 0xFF;
+    
+    Serial.println(F("[LoRaWAN] Preparing to send:"));
+    Serial.print(F("  WiFi count: "));
+    Serial.println(wifiCount);
+    Serial.print(F("  BLE count: "));
+    Serial.println(bleCount);
+}
+
 void setup() {
   Serial.begin(115200);
+  Mcu.begin(HELTEC_BOARD,SLOW_CLK_TPYE);
   delay(1000);
 
   Serial.println();
@@ -37,7 +100,28 @@ void setup() {
 }
 
 void loop() {
-  Serial.println("======================================");
+
+  {
+  switch( deviceState )
+  {
+    case DEVICE_STATE_INIT:
+    {
+#if(LORAWAN_DEVEUI_AUTO)
+      LoRaWAN.generateDeveuiByChipID();
+#endif
+      LoRaWAN.init(loraWanClass,loraWanRegion);
+      //both set join DR and DR when ADR off 
+      LoRaWAN.setDefaultDR(3);
+      break;
+    }
+    case DEVICE_STATE_JOIN:
+    {
+      LoRaWAN.join();
+      break;
+    }
+    case DEVICE_STATE_SEND:
+    {
+        Serial.println("======================================");
   Serial.println("New scan window started");
 
   // ---------- 1. BLE scan ----------
@@ -146,6 +230,30 @@ void loop() {
   Serial.println(")");
   Serial.println("======================================\n");
 
-  // Wait some time before next combined scan window
-  delay(5000);
+      sendLoRaWANData( wifiCount,bleCount,appPort );
+      LoRaWAN.send();
+      deviceState = DEVICE_STATE_CYCLE;
+      break;
+    }
+    case DEVICE_STATE_CYCLE:
+    {
+      // Schedule next packet transmission
+      txDutyCycleTime = appTxDutyCycle + randr( -APP_TX_DUTYCYCLE_RND, APP_TX_DUTYCYCLE_RND );
+      LoRaWAN.cycle(txDutyCycleTime);
+      deviceState = DEVICE_STATE_SLEEP;
+      break;
+    }
+    case DEVICE_STATE_SLEEP:
+    {
+      LoRaWAN.sleep(loraWanClass);
+      break;
+    }
+    default:
+    {
+      deviceState = DEVICE_STATE_INIT;
+      break;
+    }
+  }
 }
+}
+
