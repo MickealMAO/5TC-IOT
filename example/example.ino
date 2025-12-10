@@ -58,27 +58,34 @@ int THRESHOLD_CROWDED = 80;  // totalSignals >= 80 -> CROWDED
 uint16_t latestWifiCount = 0;
 uint16_t latestBleCount = 0;
 
+// Global variable to store previous WiFi SSIDs for comparison
+#include <vector>
+std::vector<String> lastSsids;
+
 // Function to prepare and send LoRaWAN payload
-// Payload format (5 bytes total):
+// Payload format (6 bytes total):
 // Byte 0-1: WiFi count (uint16_t, big-endian)
 // Byte 2-3: BLE count (uint16_t, big-endian)
-// Byte 4: Beacon RSSI (uint8_t: 0=Not Found, >0 = abs(RSSI))
-void sendLoRaWANData(uint16_t wifiCount, uint16_t bleCount, int beaconRssi, uint8_t port) {
+// Byte 4:   Beacon RSSI (uint8_t: 0=Not Found, >0 = abs(RSSI))
+// Byte 5:   Environment State (uint8_t: 0=Static, 1=Mobile)
+void sendLoRaWANData(uint16_t wifiCount, uint16_t bleCount, int beaconRssi, bool isMobile, uint8_t port) {
     
     // Queue the transmission
-    appDataSize = 5;
+    appDataSize = 6;
     appData[0] = (wifiCount >> 8) & 0xFF;
     appData[1] = wifiCount & 0xFF;
     appData[2] = (bleCount >> 8) & 0xFF;
     appData[3] = bleCount & 0xFF;
     
-    // Encode Beacon RSSI: 0 if not found, otherwise abs(RSSI)
-    // RSSI is typically negative (e.g., -80). We send 80.
+    // Encode Beacon RSSI
     if (beaconRssi == 0) {
         appData[4] = 0;
     } else {
         appData[4] = (uint8_t)abs(beaconRssi);
     }
+
+    // Encode Environment State
+    appData[5] = isMobile ? 1 : 0;
     
     Serial.println(F("[LoRaWAN] Preparing to send:"));
     Serial.print(F("  WiFi count: "));
@@ -91,6 +98,8 @@ void sendLoRaWANData(uint16_t wifiCount, uint16_t bleCount, int beaconRssi, uint
     } else {
       Serial.println(beaconRssi);
     }
+    Serial.print(F("  Environment: "));
+    Serial.println(isMobile ? "MOBILE" : "STATIC");
 }
 
 void setup() {
@@ -179,7 +188,7 @@ void loop() {
         Serial.print("  #");
         Serial.print(i + 1);
         Serial.print(" -> ");
-        Serial.print(adr);
+        Serial.print(addr);
         Serial.print("  RSSI=");
         Serial.print(rssi);
         if (name.length() > 0) {
@@ -197,6 +206,55 @@ void loop() {
   Serial.println("[WiFi] Scanning...");
   // WiFi.scanNetworks() returns the number of WiFi access points found
   int wifiCount = WiFi.scanNetworks();
+  
+  // Analyze Environment Stability (Static vs Mobile)
+  bool isMobile = false;
+  std::vector<String> currentSsids;
+  
+  if (wifiCount > 0) {
+      for (int i = 0; i < wifiCount; ++i) {
+          currentSsids.push_back(WiFi.SSID(i));
+      }
+  }
+
+  // Compare with last scan if we have history
+  if (!lastSsids.empty() && !currentSsids.empty()) {
+      int matchCount = 0;
+      for (const auto& ssid : currentSsids) {
+          for (const auto& lastSsid : lastSsids) {
+              if (ssid == lastSsid) {
+                  matchCount++;
+                  break;
+              }
+          }
+      }
+
+      // Calculate similarity based on the larger of the two sets
+      // This is a conservative approach: if the set size changes drastically, it's likely mobile
+      int maxSize = max(lastSsids.size(), currentSsids.size());
+      float similarity = (float)matchCount / maxSize;
+
+      Serial.print("[WiFi] Similarity with last scan: ");
+      Serial.print(similarity * 100);
+      Serial.println("%");
+
+      // Threshold: If less than 50% overlap, assume we moved
+      if (similarity < 0.5) {
+          isMobile = true;
+      }
+  } else if (lastSsids.empty() && !currentSsids.empty()) {
+      // First scan, assume Static (or unknown)
+      Serial.println("[WiFi] First scan, initializing history.");
+  } else if (currentSsids.empty()) {
+      // No WiFi found, hard to say. Keep previous state or default to Static.
+      Serial.println("[WiFi] No networks found.");
+  }
+
+  // Update history
+  lastSsids = currentSsids;
+
+  Serial.print("[WiFi] Environment State: ");
+  Serial.println(isMobile ? "MOBILE" : "STATIC");
 
   if (wifiCount == 0) {
     Serial.println("[WiFi] No networks found");
@@ -268,7 +326,7 @@ void loop() {
   Serial.println(")");
   Serial.println("======================================\n");
 
-      sendLoRaWANData( wifiCount, bleCount, targetRssi, appPort );
+      sendLoRaWANData( wifiCount, bleCount, targetRssi, isMobile, appPort );
       LoRaWAN.send();
       deviceState = DEVICE_STATE_CYCLE;
       break;
