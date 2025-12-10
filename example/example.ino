@@ -43,12 +43,15 @@ uint8_t confirmedNbTrials = 4;
 // BLE scan duration in seconds
 int BLE_SCAN_TIME = 5;
 
+// Target Beacon Name to track
+const char* TARGET_BEACON_NAME = "RG_BEACON";
+
 // Pointer to the BLE scanner object
 BLEScan *pBLEScan;
 
 // Simple thresholds for crowd level (you can tune these later)
-int THRESHOLD_CALM    = 5;   // totalSignals < 5  -> CALM
-int THRESHOLD_CROWDED = 20;  // totalSignals >= 20 -> CROWDED
+int THRESHOLD_CALM    = 20;   // totalSignals < 20  -> CALM
+int THRESHOLD_CROWDED = 80;  // totalSignals >= 80 -> CROWDED
 
 
 // Global variables to store latest counts
@@ -59,21 +62,35 @@ uint16_t latestBleCount = 0;
 // Payload format (5 bytes total):
 // Byte 0-1: WiFi count (uint16_t, big-endian)
 // Byte 2-3: BLE count (uint16_t, big-endian)
-// Byte 4: Crowd level (uint8_t: 0=CALM, 1=MODERATE, 2=CROWDED)
-void sendLoRaWANData(uint16_t wifiCount, uint16_t bleCount, uint8_t port) {
+// Byte 4: Beacon RSSI (uint8_t: 0=Not Found, >0 = abs(RSSI))
+void sendLoRaWANData(uint16_t wifiCount, uint16_t bleCount, int beaconRssi, uint8_t port) {
     
     // Queue the transmission
-    appDataSize = 4;
+    appDataSize = 5;
     appData[0] = (wifiCount >> 8) & 0xFF;
     appData[1] = wifiCount & 0xFF;
     appData[2] = (bleCount >> 8) & 0xFF;
     appData[3] = bleCount & 0xFF;
+    
+    // Encode Beacon RSSI: 0 if not found, otherwise abs(RSSI)
+    // RSSI is typically negative (e.g., -80). We send 80.
+    if (beaconRssi == 0) {
+        appData[4] = 0;
+    } else {
+        appData[4] = (uint8_t)abs(beaconRssi);
+    }
     
     Serial.println(F("[LoRaWAN] Preparing to send:"));
     Serial.print(F("  WiFi count: "));
     Serial.println(wifiCount);
     Serial.print(F("  BLE count: "));
     Serial.println(bleCount);
+    Serial.print(F("  Beacon RSSI: "));
+    if (beaconRssi == 0) {
+      Serial.println("Not Found");
+    } else {
+      Serial.println(beaconRssi);
+    }
 }
 
 void setup() {
@@ -129,6 +146,9 @@ void loop() {
   // start(scanTime, is_continue): is_continue = false means blocking scan
   BLEScanResults *bleResults = pBLEScan->start(BLE_SCAN_TIME, false);
 
+  // Initialize beacon tracking variable
+  int targetRssi = 0; // 0 means not found
+
   // getCount() returns the number of BLEAdvertisedDevice objects,
   // i.e., the number of unique BLE devices detected in this scan window.
   int bleCount = bleResults->getCount();
@@ -139,17 +159,35 @@ void loop() {
   // Show up to first 5 BLE device MAC addresses (for debugging / analysis)
   int maxBleToShow = (bleCount < 5) ? bleCount : 5;
   Serial.println("[BLE] Top BLE devices (MAC, RSSI):");
-  for (int i = 0; i < maxBleToShow; i++) {
+  for (int i = 0; i < bleCount; i++) {
     BLEAdvertisedDevice dev = bleResults->getDevice(i);
     String addr = dev.getAddress().toString().c_str();
     int rssi = dev.getRSSI();
+    String name = dev.getName().c_str();
 
-    Serial.print("  #");
-    Serial.print(i + 1);
-    Serial.print(" -> ");
-    Serial.print(addr);
-    Serial.print("  RSSI=");
-    Serial.println(rssi);
+    // Check if this is our target beacon
+    if (name == TARGET_BEACON_NAME) {
+        targetRssi = rssi;
+        Serial.print("  >>> FOUND TARGET BEACON: ");
+        Serial.print(name);
+        Serial.print(" RSSI: ");
+        Serial.println(rssi);
+    }
+
+    // Only print details for the first 5 devices to keep logs clean
+    if (i < 5) {
+        Serial.print("  #");
+        Serial.print(i + 1);
+        Serial.print(" -> ");
+        Serial.print(name);
+        Serial.print("  RSSI=");
+        Serial.print(rssi);
+        if (name.length() > 0) {
+            Serial.print(" Name=");
+            Serial.print(name);
+        }
+        Serial.println();
+    }
   }
 
   // Clear BLE results to free memory
@@ -230,7 +268,7 @@ void loop() {
   Serial.println(")");
   Serial.println("======================================\n");
 
-      sendLoRaWANData( wifiCount,bleCount,appPort );
+      sendLoRaWANData( wifiCount, bleCount, targetRssi, appPort );
       LoRaWAN.send();
       deviceState = DEVICE_STATE_CYCLE;
       break;
