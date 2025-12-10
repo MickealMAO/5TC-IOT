@@ -179,7 +179,7 @@ void loop() {
         Serial.print("  #");
         Serial.print(i + 1);
         Serial.print(" -> ");
-        Serial.print(name);
+        Serial.print(adr);
         Serial.print("  RSSI=");
         Serial.print(rssi);
         if (name.length() > 0) {
