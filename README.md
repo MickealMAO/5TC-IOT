@@ -51,7 +51,7 @@ Room Environment --> Lighthouse Node -- (via LoRaWaN Uplink) --> The Things Netw
 
 
 ## Repository Structure
-.
+
 ├── lighthouse/  
 │   ├── lighthouse.ino        Main RoomGuard program  
 │   └── ttn_decoder.json      TTN payload decoder (JSON)  
@@ -162,6 +162,11 @@ Datacake is used as the application layer for:
 - Beacon presence and RSSI visualization
 - Environment state display (STATIC / MOBILE)
 - Historical data analysis
+
+<p align="center">
+  <img src="images/datacake_1.png" width="45%" />
+  <img src="images/datacake_2.png" width="45%" />
+</p>
 
 ## License
 
