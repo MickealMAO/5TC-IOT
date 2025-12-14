@@ -164,8 +164,8 @@ Datacake is used as the application layer for:
 - Historical data analysis
 
 <p align="center">
-  <img src="images/datacake_1.png" width="45%" />
-  <img src="images/datacake_2.png" width="45%" />
+  <img src="images/Datacake_1.png" width="45%" />
+  <img src="images/Datacake_2.png" width="45%" />
 </p>
 
 ## License
