@@ -54,7 +54,7 @@ Room Environment --> Lighthouse Node -- (via LoRaWaN Uplink) --> The Things Netw
 
 ├── lighthouse/  
 │   ├── lighthouse.ino        Main RoomGuard program  
-│   └── ttn_decoder.json      TTN payload decoder (JSON)  
+│   └── ttn_decoder_v3.json      TTN payload decoder (JSON)  
 │  
 ├── beacon/  
 │   └── beacon.ino            BLE Beacon program  
@@ -142,7 +142,7 @@ The crowd level is computed on the application side from BLE and Wi-Fi counts.
 
 The TTN payload decoder is provided in:
 
-lighthouse/ttn_decoder.json
+lighthouse/ttn_decoder_v3.json
 
 It decodes:
 
