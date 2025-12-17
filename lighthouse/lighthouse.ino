@@ -49,9 +49,9 @@ const char* TARGET_BEACON_NAME = "RG_BEACON";
 // Pointer to the BLE scanner object
 BLEScan *pBLEScan;
 
-// Simple thresholds for crowd level (you can tune these later)
-int THRESHOLD_CALM    = 20;   // totalSignals < 20  -> CALM
-int THRESHOLD_CROWDED = 80;  // totalSignals >= 80 -> CROWDED
+// Simple thresholds for crowd level
+int THRESHOLD_CALM    = 20;   // BLEcount < 20  -> CALM
+int THRESHOLD_CROWDED = 80;  // BLEcount >= 80 -> CROWDED
 
 
 // Global variables to store latest counts
@@ -294,7 +294,6 @@ void loop() {
   // Delete WiFi scan results to free memory
   WiFi.scanDelete();
 
-  // ---------- 3. Compute simple crowd level ----------
   int totalSignals = bleCount + wifiCount;
 
   Serial.print("[SUMMARY] BLE unique count  = ");
@@ -304,14 +303,14 @@ void loop() {
   Serial.print("[SUMMARY] Total signals     = ");
   Serial.println(totalSignals);
 
-  // Map totalSignals to a crowd level
+  // ---------- 3. Compute simple crowd level ----------
   String crowdText;
   int crowdLevel = 0;  // 0 = CALM, 1 = MODERATE, 2 = CROWDED
 
-  if (totalSignals < THRESHOLD_CALM) {
+  if (bleCount < THRESHOLD_CALM) {
     crowdLevel = 0;
     crowdText = "CALM";
-  } else if (totalSignals < THRESHOLD_CROWDED) {
+  } else if (bleCount < THRESHOLD_CROWDED) {
     crowdLevel = 1;
     crowdText = "MODERATE";
   } else {
