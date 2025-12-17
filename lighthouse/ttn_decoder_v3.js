@@ -46,12 +46,12 @@ function decodeUplink(input) {
 
   // Determine crowd level based on thresholds
   // These thresholds match the Arduino code:
-  // THRESHOLD_CALM = 20
+  // THRESHOLD_CALM = 40
   // THRESHOLD_CROWDED = 80
   var crowdLevel;
   var crowdText;
 
-  if (data.ble_count < 20) {
+  if (data.ble_count < 40) {
     crowdLevel = 0;
     crowdText = "CALM";
   } else if (data.ble_count < 80) {

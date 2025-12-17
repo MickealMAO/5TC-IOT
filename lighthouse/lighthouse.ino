@@ -50,7 +50,7 @@ const char* TARGET_BEACON_NAME = "RG_BEACON";
 BLEScan *pBLEScan;
 
 // Simple thresholds for crowd level
-int THRESHOLD_CALM    = 20;   // BLEcount < 20  -> CALM
+int THRESHOLD_CALM    = 40;   // BLEcount < 40  -> CALM
 int THRESHOLD_CROWDED = 80;  // BLEcount >= 80 -> CROWDED
 
 

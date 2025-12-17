@@ -55,6 +55,7 @@ Room Environment --> Lighthouse Node -- (via LoRaWaN Uplink) --> The Things Netw
 ├── lighthouse/  
 │   ├── lighthouse.ino        Main RoomGuard program  
 │   └── ttn_decoder_v3.json      TTN payload decoder (JSON)  
+│   └── datacake_decoder.js      Datacake payload decoder (JavaScript)  
 │  
 ├── beacon/  
 │   └── beacon.ino            BLE Beacon program  
@@ -103,15 +104,13 @@ Main Functions
      
 ## Crowd-Level Classification
 
-Room occupancy is estimated using the total number of detected wireless signals:
-
-totalSignals = BLE_count + WiFi_count
+Room occupancy is estimated using the number of detected BLE signals:
 
 Crowd level mapping:
 
-- totalSignals < 20      → CALM
-- 20 ≤ totalSignals < 80 → MODERATE
-- totalSignals ≥ 80      → CROWDED
+- BLE_count < 40      → CALM
+- 40 ≤ BLE_count < 80 → MODERATE
+- BLE_count ≥ 80      → CROWDED
 
 
 ## Environment Dynamics Analysis (Static vs Mobile)
