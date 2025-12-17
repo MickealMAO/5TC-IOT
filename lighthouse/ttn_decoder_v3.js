@@ -51,10 +51,10 @@ function decodeUplink(input) {
   var crowdLevel;
   var crowdText;
 
-  if (data.total_signals < 20) {
+  if (data.ble_count < 20) {
     crowdLevel = 0;
     crowdText = "CALM";
-  } else if (data.total_signals < 80) {
+  } else if (data.ble_count < 80) {
     crowdLevel = 1;
     crowdText = "MODERATE";
   } else {
